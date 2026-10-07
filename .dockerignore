@@ -1,0 +1,28 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Tests & Coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tests/
+
+# Environment variables
+.env
+
+# Git and IDE
+.git/
+.gitignore
+.vscode/
+.idea/

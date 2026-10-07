@@ -1,7 +1,9 @@
 fastapi==0.142.2
+gunicorn==26.2.0
 httpx==0.28.1
 loguru==0.7.3
 pre-commit==4.6.2
+psycopg2-binary==2.9.13
 pydantic==2.13.5
 pydantic-settings==2.15.0
 pytest==9.1.1
