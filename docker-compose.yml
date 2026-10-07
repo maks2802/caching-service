@@ -22,7 +22,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+psycopg2://cache_user:cache_password@db:5432/cache_db
+      DATABASE_URL: postgresql+asyncpg://cache_user:cache_password@db:5432/cache_db
     depends_on:
       db:
         condition: service_healthy

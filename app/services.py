@@ -2,15 +2,18 @@ import hashlib
 import json
 
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Payload, TransformerCache
 from app.schemas import PayloadCreateRequest
 
 
 class PayloadService:
-    def __init__(self, db: Session):
+    """Service class encapsulating business logic for payload processing."""
+
+    def __init__(self, db: AsyncSession):
         self.db = db
 
     def _simulate_external_transformer(self, text: str) -> str:
@@ -28,12 +31,13 @@ class PayloadService:
         data = json.dumps({"list_1": list_1, "list_2": list_2}, sort_keys=True)
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
-    def process_payload(self, request: PayloadCreateRequest) -> str:
+    async def process_payload(self, request: PayloadCreateRequest) -> str:
         """Processes the incoming payload request optimally using bulk DB operations."""
         input_hash = self._generate_input_hash(list_1=request.list_1, list_2=request.list_2)
 
-        # Reuse payload identifier if already generated
-        existing_payload = self.db.query(Payload).filter(Payload.input_hash == input_hash).first()
+        # Async query for existing payload
+        result = await self.db.execute(select(Payload).filter(Payload.input_hash == input_hash))
+        existing_payload = result.scalars().first()
 
         if existing_payload:
             logger.info(f"Payload cache hit. Reusing ID: {existing_payload.id}")
@@ -42,12 +46,11 @@ class PayloadService:
         # Extract all unique strings to minimize external calls and DB queries
         unique_strings = set(request.list_1 + request.list_2)
 
-        # Bulk fetch existing translations from the cache
-        cached_records = (
-            self.db.query(TransformerCache)
-            .filter(TransformerCache.original_text.in_(unique_strings))
-            .all()
+        # Async bulk fetch from cache
+        cache_result = await self.db.execute(
+            select(TransformerCache).filter(TransformerCache.original_text.in_(unique_strings))
         )
+        cached_records = cache_result.scalars().all()
 
         # Map original text to its transformed version for O(1) lookup
         transform_map = {record.original_text: record.transformed_text for record in cached_records}
@@ -71,9 +74,9 @@ class PayloadService:
 
             # Handle race condition: another concurrent request might have just cached these words
             try:
-                self.db.commit()
+                await self.db.commit()
             except IntegrityError:
-                self.db.rollback()
+                await self.db.rollback()
                 logger.warning(
                     "Cache race condition detected: "
                     "Some words were already saved by another transaction. "
@@ -94,14 +97,13 @@ class PayloadService:
 
         # Handle race condition: another concurrent request might have just saved this exact payload
         try:
-            self.db.commit()
-            self.db.refresh(new_payload)
+            await self.db.commit()
+            await self.db.refresh(new_payload)
             logger.info(f"Generated and cached new payload: {new_payload.id}")
         except IntegrityError:
-            self.db.rollback()
-            existing_payload = (
-                self.db.query(Payload).filter(Payload.input_hash == input_hash).first()
-            )
+            await self.db.rollback()
+            result = await self.db.execute(select(Payload).filter(Payload.input_hash == input_hash))
+            existing_payload = result.scalars().first()
             logger.warning(
                 "Payload race condition detected: "
                 f"Returning concurrently saved ID: {existing_payload.id}"
@@ -110,6 +112,7 @@ class PayloadService:
 
         return new_payload.id
 
-    def get_payload_by_id(self, payload_id: str) -> Payload | None:
+    async def get_payload_by_id(self, payload_id: str) -> Payload | None:
         """Retrieves a generated payload by its unique id."""
-        return self.db.query(Payload).filter(Payload.id == payload_id).first()
+        result = await self.db.execute(select(Payload).filter(Payload.id == payload_id))
+        return result.scalars().first()

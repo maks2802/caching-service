@@ -12,12 +12,13 @@ from app.routes import router as payload_router
 async def lifespan(app: FastAPI):
     """Handles startup and shutdown events for the FastAPI application."""
     logger.info("Starting application: Creating database tables.")
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
     yield  # Application is running
 
     logger.info("Shutting down application: Disposing database engine.")
-    engine.dispose()
+    await engine.dispose()
 
 
 app = FastAPI(

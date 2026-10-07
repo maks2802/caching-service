@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas import PayloadCreateRequest, PayloadCreateResponse, PayloadReadResponse
@@ -16,14 +16,16 @@ router = APIRouter()
     response_model=PayloadCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_payload(request: PayloadCreateRequest, db: Annotated[Session, Depends(get_db)]):
+async def create_payload(
+    request: PayloadCreateRequest, db: Annotated[AsyncSession, Depends(get_db)]
+):
     """
     Accepts two lists of strings, transforms them, interleaves the results, and caches the payload.
     """
     logger.info("Received request to generate payload.")
 
     service = PayloadService(db=db)
-    payload_id = service.process_payload(request=request)
+    payload_id = await service.process_payload(request=request)
 
     return PayloadCreateResponse(message="Payload successfully generated.", id=payload_id)
 
@@ -33,12 +35,12 @@ def create_payload(request: PayloadCreateRequest, db: Annotated[Session, Depends
     response_model=PayloadReadResponse,
     status_code=status.HTTP_200_OK,
 )
-def read_payload(payload_id: str, db: Annotated[Session, Depends(get_db)]):
+async def read_payload(payload_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
     """Retrieves a previously generated payload by its ID."""
     logger.info(f"Fetching payload with ID: {payload_id}")
 
     service = PayloadService(db=db)
-    payload = service.get_payload_by_id(payload_id=payload_id)
+    payload = await service.get_payload_by_id(payload_id=payload_id)
 
     if not payload:
         logger.warning(f"Payload not found: {payload_id}")
