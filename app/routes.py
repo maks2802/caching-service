@@ -38,7 +38,7 @@ def read_payload(payload_id: str, db: Annotated[Session, Depends(get_db)]):
     logger.info(f"Fetching payload with ID: {payload_id}")
 
     service = PayloadService(db=db)
-    payload = service.get_payload_by_id(db=db, payload_id=payload_id)
+    payload = service.get_payload_by_id(payload_id=payload_id)
 
     if not payload:
         logger.warning(f"Payload not found: {payload_id}")
