@@ -47,7 +47,7 @@ The API will be available at `http://localhost:8000`.
 2. Install dependencies:
 
    ```bash
-   pip install -r requirements.txt
+   pip install -r dev-requirements.txt
    ```
 
 3. Start the application (uses SQLite by default):
