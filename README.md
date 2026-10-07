@@ -5,6 +5,7 @@ A robust FastAPI microservice that processes lists of strings, applies a simulat
 ## 🚀 Features
 
 - **FastAPI Backend:** High-performance asynchronous API framework.
+- **Fully Asynchronous:** Non-blocking database operations using `asyncpg` for PostgreSQL and `aiosqlite` for local development.
 - **Smart Caching:** Minimizes external service calls by caching individual string transformations and entire payload results using SHA-256 hashing.
 - **Concurrency Handling:** Gracefully handles race conditions during parallel processing using database transaction rollbacks.
 - **CLI Tool:** A dedicated Python command-line interface for programmatic interaction with the API, built with `argparse` and validated via `Pydantic Settings`.
@@ -124,7 +125,7 @@ python -m cli.cli [-h|--host URL] [-r|--repeat N] [-i|--input FILE|-] [-j|--json
 
 ## 🧪 Testing
 
-The project uses `pytest` for unit and integration testing.
+The project uses `pytest` for async unit and integration testing, leveraging `factory-boy` and `Faker` for isolated database mocking.
 
 To run the test suite locally:
 
@@ -144,18 +145,22 @@ pytest --cov=app --cov-report=term-missing
 .
 ├── .github/workflows/   # CI/CD pipelines
 ├── app/                 # Main FastAPI application directory
-│   ├── main.py          # Application entry point
+│   ├── main.py          # Application entry point & configuration
 │   ├── config.py        # Environment variables & settings
-│   ├── database.py      # SQLAlchemy setup & session management
+│   ├── database.py      # Async SQLAlchemy setup & session management
 │   ├── models.py        # Database ORM models
+│   ├── routes.py        # API endpoints and routing
 │   ├── schemas.py       # Pydantic models for request/response validation
-│   └── services.py      # Business logic & caching mechanisms
+│   └── services.py      # Business logic & caching mechanisms encapsulated in a service class
 ├── cli/                 # Command-line interface tool
 │   └── cli.py
 ├── tests/               # Pytest test suite
-│   └── tests.py
+│   ├── factories.py     # Factory Boy classes for test data generation
+│   ├── fixtures.py      # Pytest fixtures and test database configuration
+│   └── tests.py         # Async unit and integration tests
 ├── docker-compose.yml   # Multi-container Docker configuration
 ├── Dockerfile           # Backend container instructions
-├── requirements.txt     # Python dependencies
+├── dev-requirements.txt # Dependencies for development and testing
+├── requirements.txt     # Production Python dependencies
 └── pytest.ini           # Pytest configuration
 ```
