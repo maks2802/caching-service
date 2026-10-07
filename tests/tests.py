@@ -1,57 +1,8 @@
-import os
-
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
-from app.database import get_db
-from app.main import app
-from app.models import Base
+from tests.factories import PayloadFactory
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-
-if SQLALCHEMY_DATABASE_URL.startswith("sqlite:///"):
-    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///")
-
-engine = create_async_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-
-TestingSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-async def override_get_db():
-    """Yields a test async database session and ensures it closes after the request."""
-    async with TestingSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-
-
-# Replace the production database dependency with testing session
-app.dependency_overrides[get_db] = override_get_db
-
-
-@pytest.fixture(autouse=True)
-async def setup_database():
-    """Creates a fresh database schema before each test and drops it afterward."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-
-@pytest_asyncio.fixture
-async def client():
-    """Provides an asynchronous HTTP client for testing FastAPI endpoints."""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        yield ac
+pytest_plugins = ["tests.fixtures"]
 
 
 @pytest.mark.asyncio
@@ -77,21 +28,20 @@ async def test_create_payload_length_mismatch(client):
 
 
 @pytest.mark.asyncio
-async def test_read_payload_success(client):
+async def test_read_payload_success(client, db_session):
     """
-    Tests the full lifecycle: creating a payload and successfully retrieving it.
-    Validates the interleaving and transformation logic.
+    Tests the GET endpoint independently by pre-populating the database
+    using Factory Boy.
     """
-    payload = {"list_1": ["apple", "banana"], "list_2": ["cherry", "orange"]}
-    post_response = await client.post("/payload", json=payload)
-    payload_id = post_response.json()["id"]
-    get_response = await client.get(f"/payload/{payload_id}")
+    fake_payload = PayloadFactory.build()
+    db_session.add(fake_payload)
+    await db_session.commit()
 
-    assert get_response.status_code == 200
-    data = get_response.json()
+    response = await client.get(f"/payload/{fake_payload.id}")
 
-    expected_output = "APPLE, CHERRY, BANANA, ORANGE"
-    assert data["output"] == expected_output
+    assert response.status_code == 200
+    data = response.json()
+    assert data["output"] == fake_payload.result_text
 
 
 @pytest.mark.asyncio
